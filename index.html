@@ -1,1 +1,595 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Professional Stamp & Seal Tool</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- QRCode.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .draggable {
+            cursor: grab;
+            user-select: none;
+            position: absolute;
+            touch-action: none;
+            color: #154c79;
+            border-color: #154c79 !important;
+            background: transparent !important;
+        }
+        .draggable:active {
+            cursor: grabbing;
+        }
+        .handwritten {
+            font-family: 'Caveat', cursive;
+        }
+        body {
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans min-h-screen pb-12 relative">
+
+    <!-- Full-Screen Persistent Lock Screen with White Blank Fallback on Expiry -->
+    <div id="paymentModal" class="fixed inset-0 bg-slate-900/95 z-[9999] hidden flex items-center justify-center p-4 backdrop-blur-md">
+        <div id="modalContentBox" class="bg-white rounded-2xl max-w-md w-full p-5 text-center shadow-2xl border border-slate-200 space-y-3">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield-halved text-blue-600"></i> Secure Payment Verification
+                </h2>
+                <!-- Countdown Timer Badge (3 Minutes) -->
+                <div id="timerBadge" class="bg-red-50 text-red-600 border border-red-200 text-xs font-mono font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <i class="fa-regular fa-clock"></i> <span id="timeLeft">03:00</span>
+                </div>
+            </div>
+
+            <p class="text-[11px] text-slate-600 leading-tight">
+                Aapne free limits poore kar liye hain! Niche diye gaye QR code ko scan karke ₹50 pay karein. TRN hamesha <b>"T"</b> se shuru hona chahiye.
+            </p>
+
+            <!-- UPI QR Code Container -->
+            <div class="bg-slate-50 p-3 rounded-xl border flex flex-col items-center justify-center space-y-2">
+                <div id="qrcode" class="bg-white p-2 rounded-lg shadow-sm border"></div>
+                <span class="text-[10px] font-mono font-bold text-slate-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                    UPI ID: mobileandmoreshop@axl
+                </span>
+            </div>
+            
+            <a href="upi://pay?pa=mobileandmoreshop@axl&pn=Mobile%20And%20More&am=50.00&cu=INR" class="block w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-xl shadow transition text-xs">
+                <i class="fa-solid fa-qrcode mr-1"></i> Open UPI App to Pay ₹50
+            </a>
+
+            <!-- TRN & Dynamic PIN Form -->
+            <div class="space-y-2 text-left pt-1 border-t">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Enter TRN Number (Must start with 'T'):</label>
+                    <input type="text" id="trnNumberInput" placeholder="e.g. T342516789" oninput="updateDynamicPin(this.value)" class="w-full border rounded-lg p-2 text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                
+                <div class="flex items-center justify-between gap-2">
+                    <div class="bg-blue-50 p-2 rounded-lg border border-blue-200 flex-1">
+                        <span class="block text-[9px] text-blue-600 font-bold uppercase">Required PIN:</span>
+                        <span id="displayPin" class="text-sm font-black font-mono text-blue-900">---</span>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Enter 3-Digit PIN:</label>
+                        <input type="password" id="pinNumberInput" maxlength="3" placeholder="---" class="w-full border rounded-lg p-2 text-xs font-mono font-bold tracking-widest focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+
+                <button onclick="verifyAndSubmitTrn()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl transition text-xs shadow mt-1">
+                    Verify & Unlock Tool
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-[#154c79] text-white shadow-md py-3 px-4 sticky top-0 z-50 flex justify-between items-center">
+        <h1 class="text-base sm:text-xl font-bold truncate">Professional Stamp Tool</h1>
+        <a href="upi://pay?pa=mobileandmoreshop@axl&pn=Mobile%20And%20More&am=50.00&cu=INR" class="bg-amber-500 hover:bg-amber-600 text-white font-medium px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shrink-0 shadow">
+            <i class="fa-solid fa-mug-hot"></i> Donate ₹50
+        </a>
+    </header>
+
+    <main class="max-w-3xl mx-auto p-3 sm:p-4 space-y-4">
+        
+        <!-- History Memory & Undo/Redo Control Bar -->
+        <div class="bg-white p-2.5 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <span class="text-xs font-bold text-slate-700 uppercase"><i class="fa-solid fa-history mr-1"></i> Recent History:</span>
+                <select id="historySelect" onchange="loadFromHistory(this.value)" class="text-xs border rounded p-1 bg-slate-50 font-medium text-slate-700 max-w-[180px] truncate">
+                    <option value="">Saved Bills (Last 10)</option>
+                </select>
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto justify-end">
+                <button onclick="undoAction()" id="undoBtn" disabled class="bg-slate-200 hover:bg-slate-300 disabled:opacity-40 text-slate-800 font-medium px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1 shadow-sm">
+                    <i class="fa-solid fa-rotate-left"></i> Undo
+                </button>
+                <button onclick="redoAction()" id="redoBtn" disabled class="bg-slate-200 hover:bg-slate-300 disabled:opacity-40 text-slate-800 font-medium px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1 shadow-sm">
+                    <i class="fa-solid fa-rotate-right"></i> Redo
+                </button>
+            </div>
+        </div>
+
+        <!-- Image Upload Box -->
+        <div class="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">1. Select Photo / Document:</label>
+            <input type="file" id="imageUpload" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+        </div>
+
+        <!-- Customization Panel -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            
+            <!-- TVS Seal Settings -->
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="font-bold text-[#154c79] text-sm border-b pb-1.5 mb-2 flex justify-between items-center">
+                    <span>TVS Seal Settings</span>
+                    <label class="text-xs font-normal flex items-center gap-1 cursor-pointer">
+                        <input type="checkbox" id="toggleTvs" checked onchange="toggleSealVisibility('tvsSeal')" class="rounded text-blue-600 w-3.5 h-3.5"> Show
+                    </label>
+                </h3>
+                <div class="space-y-2 text-xs">
+                    <div>
+                        <label class="font-semibold text-slate-600">DP Amount:</label>
+                        <input type="text" id="dpAmountInput" value="5148" oninput="saveState(); updateTVSData();" class="w-full border rounded p-1.5 mt-0.5 text-xs font-bold">
+                    </div>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <div>
+                            <label class="text-slate-500 text-[10px]">Size: <span id="tvsFontSizeVal">12</span>px</label>
+                            <input type="range" id="tvsFontSize" min="9" max="16" value="12" oninput="saveState(); updateTVSData();" class="w-full accent-blue-900">
+                        </div>
+                        <div>
+                            <label class="text-slate-500 text-[10px]">Scale: <span id="tvsScaleVal">1.0</span>x</label>
+                            <input type="range" id="tvsScale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="saveState(); updateTVSData();" class="w-full accent-blue-900">
+                        </div>
+                        <div>
+                            <label class="text-slate-500 text-[10px]">Rotate: <span id="tvsRotateVal">0</span>°</label>
+                            <input type="range" id="tvsRotate" min="-180" max="180" value="0" oninput="saveState(); updateTVSData();" class="w-full accent-blue-900">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Proprietor Seal Settings -->
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="font-bold text-[#154c79] text-sm border-b pb-1.5 mb-2 flex justify-between items-center">
+                    <span>Proprietor Seal Settings</span>
+                    <label class="text-xs font-normal flex items-center gap-1 cursor-pointer">
+                        <input type="checkbox" id="toggleDealer" checked onchange="toggleSealVisibility('dealerSeal')" class="rounded text-blue-600 w-3.5 h-3.5"> Show
+                    </label>
+                </h3>
+                <div class="space-y-2 text-xs">
+                    <div>
+                        <input type="text" id="shopNameInput" value="MOBILE AND MORE" oninput="saveState(); updateDealerData();" class="w-full border rounded p-1.5 text-xs font-bold mb-1" placeholder="Shop Name">
+                        <div class="grid grid-cols-2 gap-1">
+                            <input type="text" id="signInput" value="Authorized Signatory" oninput="saveState(); updateDealerData();" class="border rounded p-1.5 text-xs" placeholder="Sign text">
+                            <input type="text" id="handwrittenSignInput" value="Rahul" oninput="saveState(); updateDealerData();" class="border rounded p-1.5 text-xs handwritten font-bold text-[#154c79]" placeholder="Sign Name">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <div>
+                            <label class="text-slate-500 text-[10px]">Size: <span id="dealerFontSizeVal">12</span>px</label>
+                            <input type="range" id="dealerFontSize" min="10" max="18" value="12" oninput="saveState(); updateDealerData();" class="w-full accent-blue-900">
+                        </div>
+                        <div>
+                            <label class="text-slate-500 text-[10px]">Scale: <span id="dealerScaleVal">1.0</span>x</label>
+                            <input type="range" id="dealerScale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="saveState(); updateDealerData();" class="w-full accent-blue-900">
+                        </div>
+                        <div>
+                            <label class="text-slate-500 text-[10px]">Rotate: <span id="dealerRotateVal">0</span>°</label>
+                            <input type="range" id="dealerRotate" min="-180" max="180" value="0" oninput="saveState(); updateDealerData();" class="w-full accent-blue-900">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="flex items-center cursor-pointer pt-0.5">
+                            <input type="checkbox" id="removeDealerBorder" onchange="saveState(); updateDealerData();" class="rounded text-red-600 w-3.5 h-3.5">
+                            <span class="ml-1.5 font-medium text-red-600 text-[11px]">Remove Proprietor Seal Border</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Single Download Button -->
+        <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+            <button onclick="downloadFinalImage()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md flex items-center justify-center gap-2">
+                <i class="fa-solid fa-download text-lg"></i> Download Final Image & Save to Browser
+            </button>
+        </div>
+
+        <!-- Preview & Canvas Workspace Container -->
+        <div class="bg-white p-2 rounded-xl shadow-inner border border-slate-300 flex justify-center overflow-x-auto">
+            <div id="captureArea" class="relative inline-block bg-white overflow-hidden max-w-full">
+                <!-- Main Image -->
+                <img id="mainImage" src="https://via.placeholder.com/600x400?text=Upload+an+Image+to+Start" alt="Preview" class="max-w-full h-auto block select-none">
+
+                <!-- TVS Seal Layer -->
+                <div id="tvsSeal" class="draggable border-[1.5px] border-[#154c79] p-2 rounded-sm flex flex-col justify-between font-bold shadow-sm" style="top: 15px; left: 15px; width: 265px; height: 82px;">
+                    <div class="text-center text-[10.5px] tracking-wide uppercase opacity-90 leading-tight">Hypothecated to</div>
+                    <div class="text-center text-[11.5px] font-black tracking-tight uppercase leading-tight">TVS CREDIT SERVICES LIMITED</div>
+                    <div class="flex items-center justify-start gap-2 border-t border-[#154c79] pt-1 px-1">
+                        <span class="text-[11px] tracking-tight uppercase whitespace-nowrap">DP Amount:</span>
+                        <span id="tvsDpDisplay" class="handwritten text-xl text-[#154c79] leading-none pt-0.5">5148</span>
+                    </div>
+                </div>
+
+                <!-- Proprietor Seal Layer -->
+                <div id="dealerSeal" class="draggable border-[1.5px] border-[#154c79] p-2 rounded-sm flex flex-col justify-between text-center font-bold shadow-sm" style="top: 115px; left: 15px; width: 235px; height: 82px;">
+                    <div id="shopNameDisplay" class="tracking-wide text-[11.5px] font-black uppercase">MOBILE AND MORE</div>
+                    <div class="flex items-center justify-center my-0">
+                        <span id="handwrittenSignDisplay" class="handwritten text-xl text-[#154c79]">Rahul</span>
+                    </div>
+                    <div id="dealerDivider" class="border-t border-[#154c79] w-full my-0"></div>
+                    <div id="signDisplay" class="tracking-tight text-[10px] uppercase opacity-90">Authorized Signatory</div>
+                </div>
+            </div>
+        </div>
+        <p class="text-[11px] text-slate-500 text-center italic">Tip: Seals par ungli rakh kar unhein photo mein kahin bhi drag kar sakte hain.</p>
+    </main>
+
+    <!-- Footer -->
+    <footer class="max-w-3xl mx-auto text-center py-4 px-3 space-y-1">
+        <p class="text-xs font-medium text-slate-600">Made with love ❤️</p>
+    </footer>
+
+    <!-- Script Logic -->
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const mainImage = document.getElementById('mainImage');
+        let currentDynamicPin = "";
+        let countdownInterval = null;
+
+        let historyStack = [];
+        let historyIndex = -1;
+        let isPerformingHistoryAction = false;
+
+        function getcurrentState() {
+            return {
+                dpAmount: document.getElementById('dpAmountInput').value,
+                tvsSize: document.getElementById('tvsFontSize').value,
+                tvsScale: document.getElementById('tvsScale').value,
+                tvsRotate: document.getElementById('tvsRotate').value,
+                tvsTop: document.getElementById('tvsSeal').style.top,
+                tvsLeft: document.getElementById('tvsSeal').style.left,
+                tvsVisible: document.getElementById('toggleTvs').checked,
+
+                shopName: document.getElementById('shopNameInput').value,
+                signText: document.getElementById('signInput').value,
+                hwSign: document.getElementById('handwrittenSignInput').value,
+                dealerSize: document.getElementById('dealerFontSize').value,
+                dealerScale: document.getElementById('dealerScale').value,
+                dealerRotate: document.getElementById('dealerRotate').value,
+                dealerTop: document.getElementById('dealerSeal').style.top,
+                dealerLeft: document.getElementById('dealerSeal').style.left,
+                dealerVisible: document.getElementById('toggleDealer').checked,
+                removeBorder: document.getElementById('removeDealerBorder').checked
+            };
+        }
+
+        function saveState() {
+            if (isPerformingHistoryAction) return;
+            historyStack = historyStack.slice(0, historyIndex + 1);
+            historyStack.push(getcurrentState());
+            historyIndex = historyStack.length - 1;
+            updateUndoRedoButtons();
+        }
+
+        function applyState(state) {
+            isPerformingHistoryAction = true;
+            document.getElementById('dpAmountInput').value = state.dpAmount;
+            document.getElementById('tvsFontSize').value = state.tvsSize;
+            document.getElementById('tvsScale').value = state.tvsScale;
+            document.getElementById('tvsRotate').value = state.tvsRotate;
+            document.getElementById('tvsSeal').style.top = state.tvsTop;
+            document.getElementById('tvsSeal').style.left = state.tvsLeft;
+            document.getElementById('toggleTvs').checked = state.tvsVisible;
+            document.getElementById('tvsSeal').style.display = state.tvsVisible ? 'flex' : 'none';
+
+            document.getElementById('shopNameInput').value = state.shopName;
+            document.getElementById('signInput').value = state.signText;
+            document.getElementById('handwrittenSignInput').value = state.hwSign;
+            document.getElementById('dealerFontSize').value = state.dealerSize;
+            document.getElementById('dealerScale').value = state.dealerScale;
+            document.getElementById('dealerRotate').value = state.dealerRotate;
+            document.getElementById('dealerSeal').style.top = state.dealerTop;
+            document.getElementById('dealerSeal').style.left = state.dealerLeft;
+            document.getElementById('toggleDealer').checked = state.dealerVisible;
+            document.getElementById('dealerSeal').style.display = state.dealerVisible ? 'flex' : 'none';
+            document.getElementById('removeDealerBorder').checked = state.removeBorder;
+
+            updateTVSData();
+            updateDealerData();
+            isPerformingHistoryAction = false;
+        }
+
+        function undoAction() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                applyState(historyStack[historyIndex]);
+                updateUndoRedoButtons();
+            }
+        }
+
+        function redoAction() {
+            if (historyIndex < historyStack.length - 1) {
+                historyIndex++;
+                applyState(historyStack[historyIndex]);
+                updateUndoRedoButtons();
+            }
+        }
+
+        function updateUndoRedoButtons() {
+            document.getElementById('undoBtn').disabled = historyIndex <= 0;
+            document.getElementById('redoBtn').disabled = historyIndex >= historyStack.length - 1;
+        }
+
+        function saveToBrowserMemory(stateData) {
+            let savedBills = JSON.parse(localStorage.getItem('savedBillsMemory') || '[]');
+            const billEntry = {
+                title: `DP: ₹${stateData.dpAmount} (${stateData.shopName})`,
+                date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                data: stateData
+            };
+            savedBills.unshift(billEntry);
+            if (savedBills.length > 10) savedBills.pop();
+            localStorage.setItem('savedBillsMemory', JSON.stringify(savedBills));
+            populateHistoryDropdown();
+        }
+
+        function populateHistoryDropdown() {
+            const select = document.getElementById('historySelect');
+            let savedBills = JSON.parse(localStorage.getItem('savedBillsMemory') || '[]');
+            select.innerHTML = '<option value="">Saved Bills (Last 10)</option>';
+            savedBills.forEach((bill, index) => {
+                let opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = `${bill.title} [${bill.date}]`;
+                select.appendChild(opt);
+            });
+        }
+
+        function loadFromHistory(index) {
+            if (index === "") return;
+            let savedBills = JSON.parse(localStorage.getItem('savedBillsMemory') || '[]');
+            if (savedBills[index]) {
+                applyState(savedBills[index].data);
+                saveState();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            saveState();
+            populateHistoryDropdown();
+            generateQRCode();
+
+            let downloadCount = parseInt(localStorage.getItem('billDownloadCount') || '0');
+            if (downloadCount >= 5) {
+                triggerLockScreen();
+            }
+        });
+
+        function generateQRCode() {
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = "";
+            new QRCode(qrContainer, {
+                text: "upi://pay?pa=mobileandmoreshop@axl&pn=Mobile%20And%20More&am=50.00&cu=INR",
+                width: 128,
+                height: 128,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function startCountdown(duration) {
+            let timer = duration, minutes, seconds;
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            countdownInterval = setInterval(() => {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                document.getElementById('timeLeft').textContent = minutes + ":" + seconds;
+
+                if (--timer < 0) {
+                    clearInterval(countdownInterval);
+                    document.body.innerHTML = "";
+                    document.body.style.backgroundColor = "#ffffff";
+                }
+            }, 1000);
+        }
+
+        function generateNewDynamicPin() {
+            currentDynamicPin = Math.floor(100 + Math.random() * 900).toString();
+            document.getElementById('displayPin').innerText = currentDynamicPin;
+        }
+
+        function updateDynamicPin(trnVal) {
+            trnVal = trnVal.trim().toUpperCase();
+            if (trnVal.startsWith("T") && trnVal.length >= 4) {
+                currentDynamicPin = trnVal.slice(-3);
+                document.getElementById('displayPin').innerText = currentDynamicPin;
+            }
+        }
+
+        function triggerLockScreen() {
+            generateNewDynamicPin();
+            document.getElementById('paymentModal').classList.remove('hidden');
+            startCountdown(180);
+        }
+
+        imageUpload.addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    mainImage.src = event.target.result;
+                    saveState();
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function updateTVSData() {
+            const dpVal = document.getElementById('dpAmountInput').value;
+            const sizeVal = document.getElementById('tvsFontSize').value;
+            const scaleVal = document.getElementById('tvsScale').value;
+            const rotateVal = document.getElementById('tvsRotate').value;
+
+            document.getElementById('tvsDpDisplay').innerText = dpVal;
+            document.getElementById('tvsFontSizeVal').innerText = sizeVal;
+            document.getElementById('tvsScaleVal').innerText = scaleVal;
+            document.getElementById('tvsRotateVal').innerText = rotateVal;
+
+            const tvsBox = document.getElementById('tvsSeal');
+            tvsBox.style.fontSize = sizeVal + 'px';
+            tvsBox.style.transform = `scale(${scaleVal}) rotate(${rotateVal}deg)`;
+            tvsBox.style.transformOrigin = 'center center';
+        }
+
+        function updateDealerData() {
+            const shopName = document.getElementById('shopNameInput').value;
+            const signText = document.getElementById('signInput').value;
+            const hwSign = document.getElementById('handwrittenSignInput').value;
+            const sizeVal = document.getElementById('dealerFontSize').value;
+            const scaleVal = document.getElementById('dealerScale').value;
+            const rotateVal = document.getElementById('dealerRotate').value;
+            const removeBorder = document.getElementById('removeDealerBorder').checked;
+
+            document.getElementById('shopNameDisplay').innerText = shopName;
+            document.getElementById('signDisplay').innerText = signText;
+            document.getElementById('handwrittenSignInput').innerText = hwSign;
+            
+            document.getElementById('dealerFontSizeVal').innerText = sizeVal;
+            document.getElementById('dealerScaleVal').innerText = scaleVal;
+            document.getElementById('dealerRotateVal').innerText = rotateVal;
+
+            const dealerBox = document.getElementById('dealerSeal');
+            dealerBox.style.fontSize = sizeVal + 'px';
+            dealerBox.style.transform = `scale(${scaleVal}) rotate(${rotateVal}deg)`;
+            dealerBox.style.transformOrigin = 'center center';
+
+            if (removeBorder) {
+                dealerBox.style.border = 'none';
+                document.getElementById('dealerDivider').style.display = 'none';
+            } else {
+                dealerBox.style.border = '1.5px solid #154c79';
+                document.getElementById('dealerDivider').style.display = 'block';
+            }
+        }
+
+        function toggleSealVisibility(id) {
+            const element = document.getElementById(id);
+            const checkbox = id === 'tvsSeal' ? document.getElementById('toggleTvs') : document.getElementById('toggleDealer');
+            element.style.display = checkbox.checked ? 'flex' : 'none';
+            saveState();
+        }
+
+        document.querySelectorAll('.draggable').forEach(elm => {
+            let isDragging = false;
+            let startX, startY, initialLeft, initialTop;
+
+            elm.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                initialLeft = elm.offsetLeft;
+                initialTop = elm.offsetTop;
+                elm.setPointerCapture(e.pointerId);
+                e.stopPropagation();
+            });
+
+            elm.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                elm.style.left = `${initialLeft + dx}px`;
+                elm.style.top = `${initialTop + dy}px`;
+            });
+
+            elm.addEventListener('pointerup', (e) => {
+                if (isDragging) {
+                    isDragging = false;
+                    saveState();
+                }
+                try {
+                    elm.releasePointerCapture(e.pointerId);
+                } catch(err) {}
+            });
+        });
+
+        function downloadFinalImage() {
+            let downloadCount = parseInt(localStorage.getItem('billDownloadCount') || '0') + 1;
+            localStorage.setItem('billDownloadCount', downloadCount);
+
+            if (downloadCount > 5) {
+                triggerLockScreen();
+                return;
+            }
+
+            const currentStateData = getcurrentState();
+            saveToBrowserMemory(currentStateData);
+
+            const captureElement = document.getElementById('captureArea');
+            html2canvas(captureElement, { useCORS: true, scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `sealed-bill-${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                if (downloadCount >= 5) {
+                    triggerLockScreen();
+                }
+            }).catch(err => {
+                alert('Download mein kuch problem aayi, kripya dobara try karein.');
+            });
+        }
+
+        function verifyAndSubmitTrn() {
+            const trnVal = document.getElementById('trnNumberInput').value.trim().toUpperCase();
+            const pinVal = document.getElementById('pinNumberInput').value.trim();
+
+            if (!trnVal.startsWith("T")) {
+                alert('INVALID TRN! TRN number hamesha "T" se shuru hona chahiye (e.g. T342516789).');
+                return;
+            }
+
+            if (trnVal.length < 4) {
+                alert('Kripya ek valid aur poora TRN number darj karein!');
+                return;
+            }
+
+            if (pinVal === "") {
+                alert('Kripya verification PIN darj karein!');
+                return;
+            }
+
+            const expectedPin = trnVal.slice(-3);
+
+            if (pinVal !== expectedPin && pinVal !== currentDynamicPin) {
+                alert('Ghalat PIN! Kripya TRN ke last 3 digits match karein.');
+                return;
+            }
+
+            clearInterval(countdownInterval);
+            localStorage.setItem('billDownloadCount', '0');
+            document.getElementById('trnNumberInput').value = "";
+            document.getElementById('pinNumberInput').value = "";
+            document.getElementById('paymentModal').classList.add('hidden');
+            alert('Verification Successful! Tool Unlocked.');
+        }
+    </script>
+</body>
+</html>
 
